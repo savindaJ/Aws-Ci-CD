@@ -3,10 +3,10 @@ name: Build and Push Docker Image to AWS ECR
 on:
   push:
     branches:
-      - main # Trigger the workflow on pushes to the 'main' branch
+      - master # Trigger the workflow on pushes to the 'main' branch
   pull_request:
     branches:
-      - main # Optionally trigger on pull requests to 'main'
+      - master # Optionally trigger on pull requests to 'main'
 
 jobs:
   build-and-push:

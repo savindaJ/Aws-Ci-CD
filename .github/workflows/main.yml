@@ -1,0 +1,49 @@
+name: Deploy Flask App to AWS ECR
+
+on:
+  push:
+    branches:
+      - main
+
+jobs:
+  build-and-deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v3
+
+      - name: Configure AWS Credentials
+        uses: aws-actions/configure-aws-credentials@v1
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ap-south-1
+
+      - name: Login to AWS ECR
+        run: |
+          aws ecr get-login-password --region ap-south-1 | docker login --username AWS --password-stdin ${{ secrets.AWS_ECR_REPO }}
+
+      - name: Build and Tag Docker Image
+        run: |
+          IMAGE_TAG=$(date +%s)
+          docker build -t ${{ secrets.AWS_ECR_REPO }}:$IMAGE_TAG .
+          docker tag ${{ secrets.AWS_ECR_REPO }}:$IMAGE_TAG ${{ secrets.AWS_ECR_REPO }}:latest
+          echo "IMAGE_TAG=$IMAGE_TAG" >> $GITHUB_ENV
+
+      - name: Push Docker Image to AWS ECR
+        run: |
+          docker push ${{ secrets.AWS_ECR_REPO }}:$IMAGE_TAG
+          docker push ${{ secrets.AWS_ECR_REPO }}:latest
+
+      - name: Deploy to AWS EC2
+        uses: appleboy/ssh-action@v0.1.7
+        with:
+          host: ${{ secrets.AWS_EC2_HOST }}
+          username: ec2-user
+          key: ${{ secrets.AWS_EC2_PRIVATE_KEY }}
+          script: |
+            docker pull ${{ secrets.AWS_ECR_REPO }}:latest
+            docker stop flask-app || true
+            docker rm flask-app || true
+            docker run -d -p 5000:5000 --name flask-app ${{ secrets.AWS_ECR_REPO }}:latest
